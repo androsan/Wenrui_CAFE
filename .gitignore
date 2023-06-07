@@ -1,0 +1,12 @@
+.vs/
+communication with Wenrui/
+INPUT_data/
+INPUT_data backup/
+OUTPUT_data/
+supplemental for development/
+WORK/
+backup.py
+matrix_interpolation_wenrui.spec
+src/build/
+src/dist/
+
