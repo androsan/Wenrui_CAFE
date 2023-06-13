@@ -66,6 +66,16 @@ def TimeScaleCounter(tf,sf,tr):
    tsc = [i for i in range(tr[0]*tf*sf, tr[1]*tf*sf)]
    return tsc
 
+def Make_Y_Partitions(Ymin, Ymax, slices):
+    dDY = (Ymax-Ymin)/slices
+    a=[Ymin+i*dDY for i in range(slices)]
+    b=[Ymin+i*dDY+1 for i in range(1,slices+1)]
+    YP={}
+    for num,(i,j) in enumerate(zip(a,b)):
+        YP['YP'+str(num)] = (int(i), int(j))
+    return YP
+
+
 #############################################################################################
 
 #**** SETUP ****#
@@ -183,33 +193,16 @@ if Matrix_4D.ndim != 4:
 '''--------------------------Increasing the resolution by linear interpolation----------------<START>'''
 
 space_factor = INTER["space factor"] # Cell size decrease factor (higher resolution)
-
 FEM_time_factor = 1 # FEM time factor to make FEM analysis shorter ---> for this factor , i.e. diminish number of time steps
 extra_time_factor = 1  # ::: special time factor ::: to catch the mesh dependency effect !! !  !
 time_factor = FEM_time_factor * extra_time_factor
-increase_tuple  = (time_factor * space_factor, space_factor, space_factor, space_factor)  # resolution increase factor by linear interpolation 
-
-
-long_track = True #INTER["isLongTrack"] # Boolean, 
-
-N = 12  #INTER["number of partitions"] # Number of equally sized partitions of the track
-
-Time_Range = (0, 25);   #(INTER["init frame"], INTER["final frame"]) # Custom time range defined by user, within which CA will be performed
-
-yp= 'YP3'             # Name of Y partition
-
-#total_time_range = (0, 10)    # Total time range (number of FEM time steps)to set the domain constrains
-
-interpolation = INTER["isInterpolation"]  # False to make .npy file of each Matrix_4D time step;    True to make time & space interpolation (scale up) of individual time step
-
+increase_tuple  = (time_factor * space_factor, space_factor, space_factor, space_factor)  # resolution increase factor by linear interpolation
 Tmelt_Celsius = FEM["material properties"]["melting point"] # Melting point, UNIT:  degrees C [deg. C]
 Tmelt = Tmelt_Celsius + 273.15 #   Melting point, :  KELVIN [K]
-
-TR_list = [i for i in range(Time_Range[0], Time_Range[1]+1)]
+N = INTER["number of partitions"]    # Number of equally sized partitions of the track
 
 x_min, x_max, y_min, y_max, z_min, z_max = 0, X, 0, Y, 0, Z
 
-#np.save("C:/Users/Andraž/Desktop/Matrix_4D.npy", Matrix_4D)
 
 #limits = [ [], [], [], [], [], [] ]
 #for i in range(total_time_range[0], total_time_range[1]):
@@ -231,119 +224,88 @@ z_max = z_max if INTER["domain limits"]["axis-2_limits"][1] == None else INTER["
 x_min = x_min if INTER["domain limits"]["axis-3_limits"][0] == None else INTER["domain limits"]["axis-3_limits"][0]
 x_max = x_max if INTER["domain limits"]["axis-3_limits"][1] == None else INTER["domain limits"]["axis-3_limits"][1]
 
+YP = Make_Y_Partitions(y_min, y_max-1, N)
 
+# Name of interpolated temperature fields main folder
 mapa =   'INTER  time='+str(time_factor)+', space='+str(space_factor)+'  Z['+str(z_min)+'-'+str(z_max)+'], X['+str(x_min)+'-'+str(x_max)+'], Y['+str(y_min)+'-'+str(y_max)+'], '+str(Tmelt_Celsius)+'degC'+', N='+str(N)+'/'                  
 
 if not os.path.isdir(PATH_work+mapa):
    os.mkdir(PATH_work+mapa)
 
 
+# TODO:  Naredi metodo, ki bo priredila najmanjši obseg èasovnih intervalov za posamezno YP particijo
 
-''' ................. SHORT track ......................................................'''
-if not long_track:
-    start_total = time.time()
-    TSC = TimeScaleCounter(time_factor, space_factor, Time_Range)
+
+
+
+
+
+matrix_4D_diminished = Matrix_4D[:, z_min:z_max, x_min:x_max,YP[yp][0]:YP[yp][1]]
+
+
+
+
+np.any(a[0]>600)
+
+
+
+Time_Range = (0, 25)   #(INTER["init frame"], INTER["final frame"]) # Custom time range defined by user, within which CA will be performed
+yp= 'YP3'             # Name of Y partition
+TR_list = [i for i in range(Time_Range[0], Time_Range[1]+1)]
+
+
+
+
+
+
+
+start_total = time.time()
+
+    
+for time_snap in range(len(TR_list)-1):
+    time_range = (TR_list[time_snap], TR_list[time_snap+1])
+    TSC = TimeScaleCounter(time_factor, space_factor, time_range)
+    g = time_range[0]
     counter = 0
-    for n in range(Time_Range[0], Time_Range[1]):
+
+
+    for n in range(time_range[0], time_range[1]):
+        yp_mapa = yp+'  ['+str(YP[yp][0])+','+str(YP[yp][1])+']'
+        if not os.path.isdir(PATH_work+mapa+yp_mapa):
+            os.mkdir(PATH_work+mapa+yp_mapa+'/')
         print(35*'~')
         print('Processing time step ',n,'/',Time_Range[1]-1,' ..')
         start = time.time()
-        inp_mat = Matrix_4D[n:n+2, z_min:z_max, x_min:x_max, y_min:y_max]    
-        out_mat = Matrix_Interpolation(inp_mat,increase_tuple); del inp_mat
-
+        inp_mat = Matrix_4D[n:n+2, z_min:z_max, x_min:x_max,YP[yp][0]:YP[yp][1]]  # same sizes of y ranges, i.e. y_max-y_min,  as defined in YP dictionary 
+        out_mat = Matrix_Interpolation(inp_mat,increase_tuple)
         if counter==0:
             od=None
         else:
             od=1
-               
-        for i in out_mat[od:]:
-            np.save(PATH_work+mapa+'fem_'+str(TSC[counter])+'.npy', i)
+        del inp_mat
+
+        for i in out_mat[1:]:
+            try:
+                subfolder = '/TR'+str(n)+'  ['+str(n)+','+str(n+1)+']'
+                np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
+            except FileNotFoundError:
+                os.mkdir(PATH_work+mapa+yp_mapa+subfolder)
+                np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
             counter+=1
+
+        # for connecting indivudal TR folders, i.e. last .npy file from working directory (say TR0) puts into next (TR1), which is created if not yet..
+        try:
+            subf = '/TR'+str(n+1)+'  ['+str(n+1)+','+str(n+2)+']'
+            np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
+        except FileNotFoundError:
+            os.mkdir(PATH_work+mapa+yp_mapa+subf)
+            np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
+
         end = time.time()
         print('Computing time: ',round(end-start, 3),'  sec.')
-        print(35*'~'); print();print();
-    print('Total computing time =  ',round(time.time()-start_total, 3),'  seconds.');print();print();print();print()
-    print(10*" "+"DONE.");print();print()
-    print(100*"=")
-    print(str(counter)+" .npy files were created in "+"~/WORK/"+mapa);
-    print("and are ready to use for Cellular Automata Grain-Growth Simulation which will be released soon..");
-    print(100*"=")  
-'''......................................................................................'''
-
-
-def TimeScaleCounter(tf,sf,tr):
-   tsc = [i for i in range(tr[0]*tf*sf, tr[1]*tf*sf)]
-   return tsc
-
-def Make_Y_Partitions(Ymin, Ymax, slices):
-    dDY = (Ymax-Ymin)/slices
-    a=[Ymin+i*dDY for i in range(slices)]
-    b=[Ymin+i*dDY+1 for i in range(1,slices+1)]
-    YP={}
-    for num,(i,j) in enumerate(zip(a,b)):
-        YP['YP'+str(num)] = (int(i), int(j))
-    return YP
-
-
-special_case = True
-
-
-
-''' ..................... LONG track ............................................................................................................................................ '''
-if long_track:
-    start_total = time.time()
-    
-    for time_snap in range(len(TR_list)-1):
-       time_range = (TR_list[time_snap], TR_list[time_snap+1])
-       TSC = TimeScaleCounter(time_factor, space_factor, time_range)
-       g = time_range[0]
-       counter = 0
-
-       YP = Make_Y_Partitions(y_min, y_max-1, N)
-       
-       for n in range(time_range[0], time_range[1]):
-           yp_mapa = yp+'  ['+str(YP[yp][0])+','+str(YP[yp][1])+']'
-           if not os.path.isdir(PATH_work+mapa+yp_mapa):
-              os.mkdir(PATH_work+mapa+yp_mapa+'/')
-           print(35*'~')
-           print('Processing time step ',n,'/',Time_Range[1]-1,' ..')
-           start = time.time()
-           if interpolation:
-              #inp_mat = Matrix_4D[n:n+2, z_min:z_max, x_min:x_max, y_min:y_max]                      # different sizes of y ranges ---> y_max - y_min set by Domain_Size_Reduction()for given time_ranges
-              inp_mat = Matrix_4D[n:n+2, z_min:z_max, x_min:x_max,YP[yp][0]:YP[yp][1]]                  # same sizes of y ranges, i.e. y_max-y_min,  as defined in YP dictionary 
-              out_mat = Matrix_Interpolation(inp_mat,increase_tuple)
-              if counter==0:
-                 od=None
-              else:
-                 od=1
-              del inp_mat
-              
-           else:
-              out_mat = Matrix_4D[ : , z_min:z_max, x_min:x_max, y_min:y_max] 
-              od=None
-
-           for i in out_mat[1:]:
-               try:
-                   subfolder = '/TR'+str(n)+'  ['+str(n)+','+str(n+1)+']'
-                   np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
-               except FileNotFoundError:
-                   os.mkdir(PATH_work+mapa+yp_mapa+subfolder)
-                   np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
-               counter+=1
-
-           if special_case:      # for connecting indivudal TR folders, i.e. last .npy file from working directory (say TR0) puts into next (TR1), which is created if not yet..
-               try: 
-                   subf = '/TR'+str(n+1)+'  ['+str(n+1)+','+str(n+2)+']'
-                   np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
-               except FileNotFoundError:
-                   os.mkdir(PATH_work+mapa+yp_mapa+subf)
-                   np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
-
-           end = time.time()
-           print('Computing time: ',round(end-start, 3),'  sec.')
-           print(35*'~'); print()
+        print(35*'~'); print()
         
-    print('Total computing time =  ',round(time.time()-start_total, 3),'  seconds.')
+print('Total computing time =  ',round(time.time()-start_total, 3),'  seconds.')
 
 
 

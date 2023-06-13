@@ -24,6 +24,8 @@ PATH_output = workDIR+"/OUTPUT_data/"     # OUTPUT_data directory
 
 FEM = appSettings["FEM parameters"]             # FEM analysis parameters
 INTER = appSettings["matrix interpolation"]     # INTERPOLATION parameters
+CA = appSettings["CA parameters"]               # CELLULAR AUTOMATA parameters
+
 '''-------------------------------------------------------------------------------------------<END>'''
 
 
@@ -360,15 +362,9 @@ def Selection_Mechanism(zrno_ID, smeri_podatkovna, pick_one):
 
 
 """ ====================================  F  I  L  E  S    &   F  O  L  D  E  R  S ========================================================"""
-# Path to FE analysis results from Salome Meca 2018
-
-
-#PATH =         'C:/sm-2018-w64-0-3/WORK/'+case+'_Files/post processing database/'+subcase+'/'
 PATH = PATH_work
 
-#mapa    =      'INTER  time=40, space=8  Z[7-8], X[15-27], Y[12-97], 1500°C, N=12/'
-#mapa    =       'INTER  time=1, space=8  Z[0-9], X[15-27], Y[12-97], 1500°C, N=12/'
-mapa = "INTER  time=1, space=8  Z[0-1], X[14-27], Y[95-180], 327degC, N=12/"
+mapa = CA["interpolated temperature fields"]+"/"     # "INTER  time=1, space=8  Z[0-1], X[14-27], Y[95-180], 327degC, N=12/"
 
 
 
@@ -385,31 +381,38 @@ if not os.path.isdir(PATH+mapa+track):
    os.mkdir(PATH+mapa+track)
 
 flashies_RGB =       track+'flashies_RGB/'                          #  Subfolder with time-snap 3D matrices, i.e. flashies
-flashies_faza =        track+'flashies_faza/'
+flashies_faza =      track+'flashies_faza/'
 
-cuts_RGB =            track+'cuts_RGB/'                               #  Subfolder with cut 3D matrices, i.e. cuts
-cuts_faza =             track+'cuts_faza/'
+cuts_RGB =           track+'cuts_RGB/'                               #  Subfolder with cut 3D matrices, i.e. cuts
+cuts_faza =          track+'cuts_faza/'
 
-''' ~~~~~~~~~~~~~~~~ Long_track_CA  ::: Domain Constraints ::: ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'''
-z_min =    0    #  71
-z_max =    1    #  72
-Z =                  z_max - z_min
 
-X=                 104        # 96       #  [27-15] =  12 cells before space interpolation, and 12*8 = 96 cells after space interpolation
-Y=                 128        #128       #  N=12 ; length of two YPs (pair), each 120 cells long: YP0 [12,27] --->>> 27-12 = 15*8 = 120 + 8
-#Y =                32                   #   N=80 ;  
+
+z_min = INTER["domain limits"]["axis-2_limits"][0]
+z_max = INTER["domain limits"]["axis-2_limits"][1]
+
+x_min = INTER["domain limits"]["axis-3_limits"][0]
+x_max = INTER["domain limits"]["axis-3_limits"][1]
+
+y_min = INTER["domain limits"]["axis-1_limits"][0]
+y_max = INTER["domain limits"]["axis-1_limits"][1]
+
+N =     INTER["number of partitions"]  # Number of equally sized segments along Y-axis of 4D matrix
+
 
 ''' ~~~~~~~~~~~~~~~~ Making of  ::: Time (tm_list):::  and  ::: Space (yp_list):::  Partitions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'''
-#y_min =           16       # N = 80 
-y_min =             95  # 12       # N = 12
-y_max =             180   #97
-
-N =                   12  #  12         # Number of equally sized segments along Y-axis of 4D matrix
-
 YP = Make_Y_Partitions(y_min, y_max-1, N)
-yp_list = [i+'  '+str(YP[i]).replace(' ', '')for i in YP]                                  #  ::: Creation of Y partitions names ::: list of strings  (yp_list)
-tm_list = ['TR{0}  [{0},{1}]'.format(i,i+1) for i in range (0,49)]         #  ::: Creation of time ranges names ::: list of strings  (tm_list)
-''' ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'''
+yp_list = [i+'  '+str(YP[i]).replace(' ', '')for i in YP]                  # Creation of Y partitions names ::: list of strings  (yp_list)
+tm_list = ['TR{0}  [{0},{1}]'.format(i,i+1) for i in range (0,49)]         # Creation of time ranges names ::: list of strings  (tm_list)
+
+   
+Z =        z_max - z_min
+
+X=         (x_max - x_min) * INTER["space factor"]   # [27-14] =  13 cells before space interpolation, and 13*8 = 104 cells after space interpolation
+Y=         128        # Length of two YPs (PAIR), each 64 cells long: YP0 [95,103] ---> 103-95 = 8 before and 8*8 = 64 after interpolation
+
+
+ 
 
 
 """ =====================================  I  N  P  U  T    D  A  T  A  ======================================================================="""
@@ -450,15 +453,16 @@ run_3rd = True
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~ interpolation time factor should be way larger, which would make CA simulation time very large!'''
 
 
-FEM_cell_size =     FEM["domain size"]["cell size"]       # 5e-05  (Wenrui said he used 50 micron cell size at FEM)
+FEM_cell_size = FEM["domain size"]["cell size"]       # 5e-05  (Wenrui said he used 50 micron cell size at FEM)
 
-space_factor =      INTER["space factor"]  # 8
+space_factor = INTER["space factor"]  # 8
 
-cell=FEM_cell_size/space_factor            # case: SLM_2D_Source
+cell = FEM_cell_size/space_factor            # case: SLM_2D_Source
 
 '''~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'''
-FEM_scanning_speed =      800               # FEM laser scanning speed; unit: MILIMETERS per SECOND [mm/s]
-FEM_time_step =   0.01        #FEM_cell_size * 1000 / FEM_scanning_speed           #  time_step to define loads in FEM; unit: SECOND [s]
+
+FEM_time_step = FEM["time step"]          #FEM_cell_size * 1000 / FEM_scanning_speed   #  time_step to define loads in FEM; unit: SECOND [s]
+FEM_scanning_speed = FEM_cell_size * 1000 / FEM_time_step               # FEM laser scanning speed; unit: MILIMETERS per SECOND [mm/s]
 
 FEM_time_factor =          1   #  5
 extra_time_factor =        1   #  8
@@ -480,8 +484,9 @@ dt_thresh = 500*dt
 ß =     0.95
 
 '''****************************'''
-START_step =             0                     # Starting time step number
-END_step     =          100                             # Ending time step number
+
+START_step = 0             # Starting time step number
+END_step = CA["END step"]  # Ending time step index (fem_{}.npy)
 
 yp_count =         0
 tm_count =         0                                    #int((START_step+1)/(time_factor*space_factor))
@@ -720,12 +725,13 @@ TherDiff = Lambda / (Rho*Cp)
 DTime = cell**2 / TherDiff
 
 ''' Melting point '''
-Tmelt_Celsius =                            327             #     case: SLM_2D_Source
+Tmelt_Celsius = FEM["material properties"]["melting point"]  # Melting point, UNIT:  degrees C [deg. C]
+Tmelt= Tmelt_Celsius + 273   #   Melting point; unit:  KELVIN [K]
 
 ''' Absolute liquidus temperature '''
 dTliquidus =    10         
 
-Tmelt= Tmelt_Celsius + 273                                 #   Melting point; unit:  KELVIN [K]
+
 
 ''' Number of Possible Cubic Unit Cell Random Orientations '''
 rp = 100                                                                #  Number of possible random alfa, beta, gama choices for grain orientation randomization
