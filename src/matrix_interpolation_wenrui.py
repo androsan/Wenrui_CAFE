@@ -233,79 +233,63 @@ if not os.path.isdir(PATH_work+mapa):
    os.mkdir(PATH_work+mapa)
 
 
-# TODO:  Naredi metodo, ki bo priredila najmanjši obseg èasovnih intervalov za posamezno YP particijo
 
+for yp in list(YP)[INTER["start partition index"]:INTER["end partition index"]+1]:
+   
+    TR_list = []
+    m4dm = Matrix_4D[:, z_min:z_max, x_min:x_max,YP[yp][0]:YP[yp][1]]
 
+    for i in range(m4dm.shape[0]):
+        if np.any(m4dm[i]>Tmelt):
+            TR_list.append(i)
+    TR_list.append(TR_list[-1]+1)
 
-
-
-
-matrix_4D_diminished = Matrix_4D[:, z_min:z_max, x_min:x_max,YP[yp][0]:YP[yp][1]]
-
-
-
-
-np.any(a[0]>600)
-
-
-
-Time_Range = (0, 25)   #(INTER["init frame"], INTER["final frame"]) # Custom time range defined by user, within which CA will be performed
-yp= 'YP3'             # Name of Y partition
-TR_list = [i for i in range(Time_Range[0], Time_Range[1]+1)]
-
-
-
-
-
-
-
-start_total = time.time()
-
+    start_total = time.time()
     
-for time_snap in range(len(TR_list)-1):
-    time_range = (TR_list[time_snap], TR_list[time_snap+1])
-    TSC = TimeScaleCounter(time_factor, space_factor, time_range)
-    g = time_range[0]
-    counter = 0
+    for time_snap in range(len(TR_list)-1):
+        time_range = (TR_list[time_snap], TR_list[time_snap+1])
+        TSC = TimeScaleCounter(time_factor, space_factor, time_range)
+        g = time_range[0]
+        counter = 0
 
 
-    for n in range(time_range[0], time_range[1]):
-        yp_mapa = yp+'  ['+str(YP[yp][0])+','+str(YP[yp][1])+']'
-        if not os.path.isdir(PATH_work+mapa+yp_mapa):
-            os.mkdir(PATH_work+mapa+yp_mapa+'/')
-        print(35*'~')
-        print('Processing time step ',n,'/',Time_Range[1]-1,' ..')
-        start = time.time()
-        inp_mat = Matrix_4D[n:n+2, z_min:z_max, x_min:x_max,YP[yp][0]:YP[yp][1]]  # same sizes of y ranges, i.e. y_max-y_min,  as defined in YP dictionary 
-        out_mat = Matrix_Interpolation(inp_mat,increase_tuple)
-        if counter==0:
-            od=None
-        else:
-            od=1
-        del inp_mat
+        for n in range(time_range[0], time_range[1]):
+            yp_mapa = yp+'  ['+str(YP[yp][0])+','+str(YP[yp][1])+']'
+            if not os.path.isdir(PATH_work+mapa+yp_mapa):
+                os.mkdir(PATH_work+mapa+yp_mapa+'/')
+            print(35*'~')
+            print('Processing time step ',n,'/',len(TR_list),' ..')
+            start = time.time()
+            inp_mat = Matrix_4D[n:n+2, z_min:z_max, x_min:x_max,YP[yp][0]:YP[yp][1]]  # same sizes of y ranges, i.e. y_max-y_min,  as defined in YP dictionary 
+            out_mat = Matrix_Interpolation(inp_mat,increase_tuple)
+            if counter==0:
+                od=None
+            else:
+                od=1
+            del inp_mat
 
-        for i in out_mat[1:]:
+            for i in out_mat[1:]:
+                try:
+                    subfolder = '/TR'+str(n)+'  ['+str(n)+','+str(n+1)+']'
+                    np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
+                except FileNotFoundError:
+                    os.mkdir(PATH_work+mapa+yp_mapa+subfolder)
+                    np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
+                counter+=1
+
+            # for connecting indivudal TR folders, i.e. last .npy file from working directory (say TR0) puts into next (TR1), which is created if not yet..
             try:
-                subfolder = '/TR'+str(n)+'  ['+str(n)+','+str(n+1)+']'
-                np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
+                subf = '/TR'+str(n+1)+'  ['+str(n+1)+','+str(n+2)+']'
+                np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
             except FileNotFoundError:
-                os.mkdir(PATH_work+mapa+yp_mapa+subfolder)
-                np.save(PATH_work+mapa+yp_mapa+subfolder+'/fem_'+str(TSC[counter]-g)+'.npy', i)
-            counter+=1
+                os.mkdir(PATH_work+mapa+yp_mapa+subf)
+                np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
 
-        # for connecting indivudal TR folders, i.e. last .npy file from working directory (say TR0) puts into next (TR1), which is created if not yet..
-        try:
-            subf = '/TR'+str(n+1)+'  ['+str(n+1)+','+str(n+2)+']'
-            np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
-        except FileNotFoundError:
-            os.mkdir(PATH_work+mapa+yp_mapa+subf)
-            np.save(PATH_work+mapa+yp_mapa+subf+'/fem_'+str(TSC[counter-1]-g)+'.npy', out_mat[-1])
-
-        end = time.time()
-        print('Computing time: ',round(end-start, 3),'  sec.')
-        print(35*'~'); print()
+            end = time.time()
+            print('Computing time: ',round(end-start, 3),'  sec.')
+            print(35*'~'); print()
         
-print('Total computing time =  ',round(time.time()-start_total, 3),'  seconds.')
+    print('Total computing time =  ',round(time.time()-start_total, 3),'  seconds.')
 
 
 

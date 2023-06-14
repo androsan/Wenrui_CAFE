@@ -408,11 +408,9 @@ tm_list = ['TR{0}  [{0},{1}]'.format(i,i+1) for i in range (0,49)]         # Cre
    
 Z =        z_max - z_min
 
-X=         (x_max - x_min) * INTER["space factor"]   # [27-14] =  13 cells before space interpolation, and 13*8 = 104 cells after space interpolation
-Y=         128        # Length of two YPs (PAIR), each 64 cells long: YP0 [95,103] ---> 103-95 = 8 before and 8*8 = 64 after interpolation
+X=         (x_max - x_min) * INTER["space factor"]             # [27-14] =  13 cells before space interpolation, and 13*8 = 104 cells after space interpolation
+Y=         (((y_max - y_min -1)/N)+1)*INTER["space factor"]    # Length of two YPs (PAIR), each 64 cells long: YP0 [95,103] ---> 103-95 = 8 before and 8*8 = 64 after interpolation
 
-
- 
 
 
 """ =====================================  I  N  P  U  T    D  A  T  A  ======================================================================="""
