@@ -375,7 +375,7 @@ tracks_database = {
     'iso': ['2D 1st order Moore, iso field/', '2D 2nd order Moore, iso field/', '3D 1st order Moore, iso field/', '3D 2nd order Moore, iso field/'],
     'real': ['2D 1st order Moore, real field/', '2D 2nd order Moore, real field/', '3D 1st order Moore, real field/', '3D 2nd order Moore, real field/'],
 }
-track =                                                                               tracks_database['real'][1]
+track = tracks_database['real'][1]
 
 if not os.path.isdir(PATH+mapa+track):
    os.mkdir(PATH+mapa+track)
@@ -408,9 +408,8 @@ tm_list = ['TR{0}  [{0},{1}]'.format(i,i+1) for i in range (0,49)]         # Cre
    
 Z =        z_max - z_min
 
-X=         (x_max - x_min) * INTER["space factor"]             # [27-14] =  13 cells before space interpolation, and 13*8 = 104 cells after space interpolation
-Y=         (((y_max - y_min -1)/N)+1)*INTER["space factor"]    # Length of two YPs (PAIR), each 64 cells long: YP0 [95,103] ---> 103-95 = 8 before and 8*8 = 64 after interpolation
-
+X=         (x_max - x_min) * INTER["space factor"]                         # [27-14] =  13 cells before space interpolation, and 13*8 = 104 cells after space interpolation
+Y=         2*int((((y_max - y_min -1)/N)+1)*INTER["space factor"])         # Length of two YPs (PAIR), each 64 cells long: YP0 [95,103] ---> 103-95 = 8 before and 8*8 = 64 after interpolation
 
 
 """ =====================================  I  N  P  U  T    D  A  T  A  ======================================================================="""
